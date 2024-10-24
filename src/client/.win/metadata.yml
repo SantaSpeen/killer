@@ -1,0 +1,12 @@
+# create-version-file metadata.yml --outfile version.txt
+Version: 0.0.1
+CompanyName: terra
+FileDescription: killer client service
+InternalName: killer
+LegalCopyright: © SantaSpeen
+OriginalFilename: killer-client.exe
+ProductName: killer
+Translation:
+  # en-US
+  - langID: 1033
+    charsetID: 1251
