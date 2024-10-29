@@ -9,6 +9,8 @@ from pathlib import Path
 
 from loguru import logger
 
+from .datastore import Host, HostDatabase
+
 # configure logging
 logger.remove()
 system = platform.system()
@@ -44,3 +46,5 @@ class InterceptHandler(logging.Handler):
     def emit(self, record):
         logger_opt = logger.opt(depth=6, exception=record.exc_info)
         logger_opt.log(record.levelno, record.getMessage())
+
+logger.success("Starting")

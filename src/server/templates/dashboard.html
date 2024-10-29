@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Host Dashboard</title>
+    <style>
+        body {
+            background-color: #121212; /* Тёмный фон */
+            color: #ffffff; /* Белый текст для контраста */
+        }
+        table {
+            background-color: #1e1e1e; /* Фон таблицы */
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #333333; /* Тёмный фон для заголовков таблицы */
+            color: #ffffff; /* Белый текст для заголовков */
+            text-align: left;
+        }
+        h1 {
+            text-align: center;
+        }
+        .online {
+            color: #44ff44;
+        }
+        .offline {
+            color: #ff4444;
+        }
+        .kill-all-btn {
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            float: right;
+        }
+        .mono {
+            font-family: monospace;
+        }
+    </style>
+    <script>
+        function killAll() {
+            fetch('/admin/kill_all', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.message);
+                alert(data.message);
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Killer Dashboard</h1>
+    <div style="text-align: right;">
+        <button class="kill-all-btn" onclick="killAll()">Kill All</button>
+    </div>
+    <table>
+        <tr>
+            <th>Статус</th>
+            <th>Имя хоста</th>
+            <th>Хэш устройства</th>
+            <th>IP адреса</th>
+            <th>MAC адреса</th>
+            <th>Последняя активность</th>
+        </tr>
+        {% for host in hosts %}
+        <tr>
+            <td class="{{ 'online' if host.is_active() else 'offline' }}">
+                {{ '✅' if host.is_active() else '❌' }}
+            </td>
+            <td class="{{ 'online' if host.is_active() else 'offline' }}">
+                {{ host.hostname }}
+            </td>
+            <td class="mono">{{ host.device_hash }}</td>
+            <td>{{ ', '.join(host.ips) }}</td>
+            <td>{{ ', '.join(host.macs) }}</td>
+            <td>{{ host.last_request.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
