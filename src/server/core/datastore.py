@@ -1,7 +1,9 @@
 import hashlib
 import json
+import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
 from loguru import logger
 
 
@@ -20,8 +22,15 @@ class Host:
         self.enable = enable  # Если хост отключили, и не нужно его алертить
         self.generate_hash()
 
+    def _check_enable(self):
+        if not self.enable:
+            self.enable = True
+            logger.info(f"[{self.hostname}] Host marked as active")
+            [callback(self) for callback in HostDatabase.enable_callbacks]
+
     def update(self, hostname, ips, macs):
         """Обновление данных хоста"""
+        self._check_enable()
         self.hostname = hostname
         self.ips = ips
         self.macs = macs
@@ -34,7 +43,15 @@ class Host:
 
     def ping(self):
         """Обновление времени последнего запроса"""
+        self._check_enable()
         self.last_request = datetime.now(timezone.utc)
+        logger.info(f"[{self.hostname}] ping: {self.last_request}")
+
+    def shutdown(self):
+        """Хост сообщил о завершении работы"""
+        self.enable = False
+        logger.info(f"[{self.hostname}] Host marked as inactive")
+        [callback(self) for callback in HostDatabase.shutdown_callbacks]
 
     def generate_hash(self):
         """Генерация уникального хеша для хоста по его MAC и IP адресам"""
@@ -43,8 +60,10 @@ class Host:
 
     def is_active(self):
         """Проверка активности хоста"""
+        if not self.enable:
+            return False
         current_time = datetime.now(timezone.utc)
-        if current_time - self.last_request > self.inactive_timeout:
+        if (current_time - self.last_request) > self.inactive_timeout:
             return False
         return True
 
@@ -72,6 +91,10 @@ class Host:
 
 
 class HostDatabase:
+    inactive_callbacks = []
+    shutdown_callbacks = []
+    enable_callbacks = []
+
     def __init__(self, data_file):
         self.t = None
         self.run = True
@@ -90,6 +113,13 @@ class HostDatabase:
         with open(self.file, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4)
 
+    def _check_clients(self):
+        while True:
+            for host in self.find_inactive():
+                logger.warning(f"Host {host.hostname!r} is inactive")
+                [callback(host) for callback in self.inactive_callbacks]
+            threading.Event().wait(Host.inactive_timeout.total_seconds())  # Пауза между проверками
+
     def get(self, device_hash):
         host = self.data.get(device_hash)
         return Host.from_tuple(host)
@@ -101,6 +131,20 @@ class HostDatabase:
             host.generate_hash()
         self.data[host.device_hash] = host.to_tuple()
         logger.info(f"[datastore] Add new host: {host}")
+        self._write()
+
+    def update(self, host: Host):
+        if self.data.get(host.device_hash) is None:
+            return
+        self.data[host.device_hash] = host.to_tuple()
+        self._write()
+
+    def replace(self, old_device_hash, new_host: Host):
+        if self.data.get(old_device_hash) is None:
+            return
+        self.data.pop(old_device_hash)
+        self.data[new_host.device_hash] = new_host.to_tuple()
+        logger.info(f"[datastore] device_hash replaced for {new_host.hostname!r}: {old_device_hash} -> {new_host.device_hash}")
         self._write()
 
     def all(self):

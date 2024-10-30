@@ -1,8 +1,8 @@
 import hashlib
 import secrets
 import threading
-from datetime import timedelta
-from venv import logger
+from datetime import timedelta, datetime, timezone
+from loguru import logger
 
 from flask import Flask, request, render_template, redirect, url_for, make_response, flash
 
@@ -12,6 +12,8 @@ host_db = HostDatabase("hosts.json")
 app = Flask(__name__)
 app.secret_key = secrets.token_urlsafe(16)
 app.logger.addHandler(InterceptHandler()) # Эксепшены с фласка будут попадать в логи
+kill_timeout = 120  # 2 минуты
+kill_all_history = [0.0, ]
 
 def generate_hash(login, password, salt):
     return hashlib.sha256(f"{login}{salt}{password}".encode()).hexdigest()
@@ -41,21 +43,23 @@ def get_error(code, message=None, http_code=200):
             err['error'] = f"unknown error ({message})"
     return err
 
-@app.route('/client', methods=['GET'])
+
+@app.route('/client', methods=['POST'])
 def client_update():
     data = request.json
     device_hash = data.get('device_hash')  # Ожидаем, что клиент отправит свой уникальный хеш
     act = data.get('act')  # Что хочет клиент
-    if not all((device_hash, act)):
-        return get_error(1, "device_hash or act")
-    if len(device_hash) != 64 and act != "register":
-        return get_error(2, "bad device_hash")
+    if act != "register":
+        if not all((device_hash, act)):
+            return get_error(1, "device_hash or act")
+        if len(device_hash) != 64:
+            return get_error(2, "bad device_hash")
     hostname, ips, macs = data.get('hostname'), data.get('ips'), data.get('macs')
     # Проверяем данные
     if act in ("register", "update"):
         if not all((hostname, ips, macs)):
             return get_error(1, "hostname, ips, macs")
-        if isinstance(hostname, str):
+        if not isinstance(hostname, str):
             return get_error(4, "hostname must be a string")
         if not isinstance(ips, list) or not isinstance(macs, list):
             return get_error(4, "ips and macs must be lists")
@@ -71,13 +75,24 @@ def client_update():
             if host is None:
                 return get_error(2)
             _device_hash, updated = host.update(hostname, ips, macs)
+            if updated:
+                host_db.replace(device_hash, host)
             return {"device_hash": _device_hash, "updated": updated}
         case "ping":  # раз в 1 минуту клиент шлет пинг
             host = host_db.get(device_hash)
             if host is None:
                 return get_error(4, "unknown device")
             host.ping()
-            return {"message": "pong"}
+            host_db.update(host)
+            # Если есть команда на убийство всех процессов и ей не более 5 минут
+            return {"message": "pong", "kill": datetime.now(timezone.utc).timestamp() - kill_all_history[-1] < kill_timeout}
+        case "shutdown":  # клиент завершает работу
+            host = host_db.get(device_hash)
+            if host is None:
+                return get_error(4, "unknown device")
+            host.shutdown()
+            host_db.update(host)
+            return {"message": 0}
         case _:
             return get_error(4, "act")
 
@@ -117,6 +132,7 @@ def admin_dashboard():
 def kill_all():
     if not check_cookie():
         return redirect(url_for('admin_index'))
+    kill_all_history.append(datetime.now(timezone.utc).timestamp())
     return {"message": "Command added to queue"}
 
 @app.errorhandler(Exception)
@@ -126,16 +142,11 @@ def handle_error(error):
         status_code = error.code
     if status_code < 500:
         code = 8
+    if status_code == 500:
+        logger.exception(error)
     return get_error(code, str(error), status_code), status_code
-
-
-def check_clients():
-    while True:
-        for host in host_db.find_inactive():
-            logger.warning(f"Host {host} is inactive")
-        threading.Event().wait(60)  # Пауза между проверками (1 минута)
 
 if __name__ == '__main__':
     # Запускаем фоновую задачу проверки клиентов
-    threading.Thread(target=check_clients, daemon=True).start()
+    threading.Thread(target=host_db._check_clients, daemon=True).start()
     app.run(host='0.0.0.0', port=5000)
