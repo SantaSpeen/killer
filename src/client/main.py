@@ -1,0 +1,167 @@
+import os
+import platform
+import socket
+import time
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+
+import psutil
+import requests
+
+
+def get_ip_mac_addresses():
+    interfaces = psutil.net_if_addrs()
+    interface_stats = psutil.net_if_stats()
+    ifaces = []
+    for iface_name, addrs in interfaces.items():
+        if interface_stats[iface_name].isup:
+            ip, mac = None, None
+            for addr in addrs:
+                if addr.family == socket.AF_INET:  # IPv4
+                    ip = addr.address
+                elif addr.family == psutil.AF_LINK:  # MAC
+                    mac = addr.address.replace("-", ":")
+            if mac is None:
+                # print(f"[{iface_name}] MAC address not found. Skipping...")
+                continue
+            ifaces.append((ip, mac))
+    print("Found interfaces:", ifaces)
+    return ifaces
+
+def shutdown():
+    operating_system = platform.system()
+    if operating_system == "Windows":
+        with open("killer-client.txt", "a") as f:
+            f.write(f"{datetime.now()} Shutdown request from killer server.\n")
+        os.system("shutdown /s /t 1")
+    else:
+        with open("/var/log/killer-client", "a") as f:
+            f.write(f"{datetime.now()} Shutdown request from killer server.")
+        os.system("shutdown -P now")
+
+
+class Host:
+    ping_interval = timedelta(minutes=1)
+    update_interval = timedelta(hours=12)
+
+    def __init__(self, endpoint, save_dir):
+        self.run = False
+
+        self.endpoint = endpoint
+        self.save_dir = Path(save_dir)
+        self.session = requests.Session()
+
+        self.ips = []
+        self.macs = []
+        self.hostname = None
+        self._update_params()
+
+        self.last_update = None
+        self.device_hash = None
+
+
+    def _update_params(self):
+        self.hostname = socket.gethostname()
+        ifaces = get_ip_mac_addresses()
+        self.ips = [ip for ip, _ in ifaces]
+        self.macs = [mac for _, mac in ifaces]
+
+    def _save_hash(self):
+        if not self.save_dir.exists():
+            self.save_dir.mkdir()
+        if self.last_update is None or self.device_hash is None:
+            print("Can't save hash: last_update or device_hash is None")
+            return
+        with open(self.save_dir / "device.hash", "w") as f:
+            f.write(f"{self.last_update.timestamp()}::{self.device_hash}")
+
+    def _read_hash(self):
+        if not (self.save_dir / "device.hash").exists():
+            return
+        with open(self.save_dir / "device.hash", "r") as f:
+            d = f.read().strip()
+        last_update, self.device_hash = d.split("::", 1)
+        self.last_update = datetime.fromtimestamp(float(last_update), timezone.utc)
+
+    def api(self, act):
+        j = {"act": act, "device_hash": self.device_hash}
+        if act not in ['ping', 'exit']:
+            j = {"act": act, "device_hash": self.device_hash, "hostname": self.hostname, "ips": self.ips, "macs": self.macs}
+        try:
+            s = self.session.post(self.endpoint, json=j).json()
+        except requests.exceptions.RequestException as e:
+            print(f"[API] Error: {e}")
+            if self.run:
+                return {}
+            exit(1)
+        if s.get("error"):
+            print(f"[API] Error: {s}")
+        return s
+
+    def shutdown(self):
+        self.api("shutdown")
+        self.run = False
+        self._save_hash()
+        print("Exited...")
+
+    def _new_hash(self, device_hash):
+        self.last_update = datetime.now(timezone.utc)
+        self.device_hash = device_hash
+        self._save_hash()
+
+    def register(self):
+        print("Registering...")
+        u = self.api("register")
+        if u.get("device_hash"):
+            self._new_hash(u['device_hash'])
+            print(f"Registered with device hash: {self.device_hash}")
+        else:
+            print("Failed to register")
+            exit(1)
+
+    def update(self):
+        print("Updating...")
+        u = self.api("update")
+        if u.get("updated"):
+            self._new_hash(u['device_hash'])
+            print(f"Updated device hash: {self.device_hash}")
+        else:
+            print("Device hash not updated")
+
+    def _pre_start(self):
+        if self.device_hash is None:
+            self.register()
+        else:
+            print(f"Using cashed hash: {self.device_hash}")
+        p = self.api("ping")
+        if p.get("code") == 4:
+            self.device_hash = None
+            return self._pre_start()
+        if self.api("ping").get("message") == "pong":
+            print("Connected to server")
+            self.run = True
+    def start(self):
+        print(f"Ping interval: {self.ping_interval}; Update interval: {self.update_interval};")
+        self._read_hash()
+        self._pre_start()
+        while self.run:
+            if datetime.now(timezone.utc) - self.last_update > self.update_interval:
+                self.update()
+            p = self.api("ping")
+            if p.get("code") == 4:
+                print('wtf')
+                self._pre_start()
+            if p.get("kill"):
+                shutdown()
+            time.sleep(self.ping_interval.total_seconds())
+
+
+if __name__ == '__main__':
+    print("Starting client...")
+    host = Host("http://127.0.0.1:5000/client", "./")
+    try:
+        host.start()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        host.shutdown()
