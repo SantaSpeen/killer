@@ -10,7 +10,7 @@ from loguru import logger
 class Host:
     inactive_timeout = timedelta(minutes=1, seconds=15)
 
-    def __init__(self, hostname, ips, macs, last_request: int = None, enable=True):
+    def __init__(self, hostname, ips, macs, last_request: int = None, last_update:int = None, enable=True):
         self.hostname = hostname
         self.device_hash = None
         self.ips = ips
@@ -18,9 +18,17 @@ class Host:
         if last_request is None:
             last_request = int(datetime.now(timezone.utc).timestamp())
         self.last_request = datetime.fromtimestamp(last_request, timezone.utc)
-        self.last_update = datetime.now(timezone.utc).timestamp()
+        if last_update is None:
+            last_update = int(datetime.now(timezone.utc).timestamp())
+        self.last_update = datetime.fromtimestamp(last_update, timezone.utc)
         self.enable = enable  # Если хост отключили, и не нужно его алертить
         self.generate_hash()
+
+    def last_request_local(self, plus):
+        return self.last_request.astimezone(timezone(timedelta(hours=plus)))
+
+    def last_update_local(self, plus):
+        return self.last_update.astimezone(timezone(timedelta(hours=plus)))
 
     def _check_enable(self):
         if not self.enable:
@@ -34,7 +42,7 @@ class Host:
         self.hostname = hostname
         self.ips = ips
         self.macs = macs
-        self.last_update = datetime.now(timezone.utc).timestamp()
+        self.last_update = datetime.now(timezone.utc)
         old_device_hash = self.device_hash
         self.generate_hash()
         self.ping()
@@ -72,8 +80,8 @@ class Host:
         """Создание объекта хоста из кортежа"""
         if line is None:
             return line
-        hostname, device_hash, ips, macs, last_request, enable = line
-        host = cls(hostname, ips, macs, last_request, enable)
+        hostname, device_hash, ips, macs, last_request, last_update, enable = line
+        host = cls(hostname, ips, macs, last_request, last_update, enable)
         host.generate_hash()
         if device_hash != host.device_hash:
             logger.error(f"[datastore] Hash mismatch of host {hostname}: {device_hash} != {host.device_hash}")
@@ -81,7 +89,11 @@ class Host:
 
     def to_tuple(self) -> tuple:
         """Преобразование объекта хоста в кортеж"""
-        return self.hostname, self.device_hash, self.ips, self.macs, int(self.last_request.timestamp()), self.enable
+        return (
+            self.hostname, self.device_hash, self.ips, self.macs,
+            int(self.last_request.timestamp()), int(self.last_update.timestamp()),
+            self.enable
+        )
 
     def __eq__(self, other):
         return self.to_tuple() == other.to_tuple()

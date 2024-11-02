@@ -39,10 +39,19 @@
             border: none;
             cursor: pointer;
             font-size: 16px;
-            float: right;
         }
         .mono {
             font-family: monospace;
+        }
+        .flex-container {
+            display: flex;
+            justify-content: space-between; /* Распределяем пространство между элементами */
+            align-items: center; /* Выравниваем элементы по центру по вертикали */
+            margin-bottom: 20px; /* Отступ снизу для контейнера */
+        }
+        p {
+            line-height: 1.2; /* Уменьшаем межстрочный интервал */
+            margin: 4px 0; /* Устанавливаем отступы сверху и снизу */
         }
     </style>
     <script>
@@ -60,7 +69,31 @@
 </head>
 <body>
     <h1>Killer Dashboard</h1>
-    <div style="text-align: right;">
+    <div class="flex-container">
+        <div>
+            <p><b>Количество хостов</b>: {{ hosts|length }}</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Kill?</th>
+                        <th>Timeouts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Apps</td>
+                        <td>{{ '✅' if kill_apps else '❌' }}</td>
+                        <td>{{ kill_app_timeout }}s</td>
+                    </tr>
+                    <tr>
+                        <td>Others</td>
+                        <td>{{ '✅' if kill_other else '❌' }}</td>
+                        <td>{{ kill_timeout }}s</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
         <button class="kill-all-btn" onclick="killAll()">Kill All</button>
     </div>
     <table>
@@ -71,6 +104,7 @@
             <th>IP адреса</th>
             <th>MAC адреса</th>
             <th>Последняя активность</th>
+            <th>Последнее обновление</th>
         </tr>
         {% for host in hosts %}
         <tr>
@@ -81,9 +115,10 @@
                 {{ host.hostname }}
             </td>
             <td class="mono">{{ host.device_hash }}</td>
-            <td>{{ ', '.join(host.ips) }}</td>
-            <td>{{ ', '.join(host.macs) }}</td>
-            <td>{{ host.last_request.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>{{ '<br>'.join(host.ips) | safe }}</td>
+            <td>{{ '<br>'.join(host.macs) | safe }}</td>
+            <td>{{ host.last_request_local(3).strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>{{ host.last_update_local(3).strftime('%Y-%m-%d %H:%M:%S') }}</td>
         </tr>
         {% endfor %}
     </table>
