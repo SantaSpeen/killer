@@ -1,0 +1,1 @@
+pyinstaller --noconfirm --onefile --console --icon icon.ico --name "killer-client" --version-file version.txt ../main.py --hidden-import=requests
