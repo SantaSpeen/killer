@@ -28,19 +28,20 @@ def get_ip_mac_addresses():
     for iface_name, addrs in interfaces.items():
         if interface_stats[iface_name].isup:
             ip, mac = None, None
+            ip6, mac6 = None, None
             for addr in addrs:
                 if addr.family == socket.AF_INET:  # IPv4
                     ip = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
                     mac = addr.address.replace("-", ":")
                 if addr.family == socket.AF_INET6:  # IPv6
-                    ip = addr.address
+                    ip6 = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
-                    mac = addr.address.replace("-", ":")
-            if None in (ip, mac):
-                # print(f"[{iface_name}] MAC address not found. Skipping...")
-                continue
-            ifaces.append((ip, mac))
+                    mac6 = addr.address.replace("-", ":")
+            if None not in (ip, mac):
+                ifaces.append((ip, mac))
+            if None not in (ip6, mac6):
+                ifaces.append((ip6, mac6))
     print("Found interfaces:", ifaces)
     return ifaces
 
