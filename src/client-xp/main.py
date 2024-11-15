@@ -22,10 +22,10 @@ if KILLER_APP == "1":
     app = True
 
 
+# noinspection t
 def get_ip_mac_addresses():
-    ifaces = []
+    ifaces_raw = []
     c = wmi.WMI()
-
     for nic in c.Win32_NetworkAdapterConfiguration(IPEnabled=True):
         ip = nic.Description
         mac = nic.MACAddress
@@ -33,21 +33,29 @@ def get_ip_mac_addresses():
         ip_addresses = nic.IPAddress
         if ip_addresses:
             for ip_address in ip_addresses:
-                ifaces.append((ip_address, mac))
-    print("Found interfaces:", ifaces)
-    return ifaces
+                ifaces_raw.append((ip_address, mac))
+
+    ifaces = []
+    for ip, mac in ifaces_raw:
+        if ip == "::1":
+            continue
+        if ip.startswith(('127.', '224.', '239.')):
+            continue
+        if "00:00:00:00:00:00" == mac:
+            continue
+        if None not in (ip, mac):
+            ifaces.append((ip, mac))
+    print("Found interfaces:", ifaces_raw)
+    return ifaces_raw
 
 def shutdown(log_file=LOG_FILE):
     operating_system = platform.system()
+    with open(log_file, "a") as f:
+        f.write("[{}] Shutdown request from killer server.\n".format(datetime.now()))
     if operating_system == "Windows":
-        with open(log_file, "a") as f:
-            f.write("{} Shutdown request from killer server.\n".format(datetime.now()))
         os.system("shutdown /s /t 1")
     else:
-        with open(log_file, "a") as f:
-            f.write("{} Shutdown request from killer server.".format(datetime.now()))
         os.system("shutdown -P now")
-    # sys.exit(0)
 
 
 class Host(object):
@@ -91,19 +99,16 @@ class Host(object):
         self.last_update = datetime.fromtimestamp(float(last_update), timezone.utc)
 
     def api(self, act):
-        headers = {'Content-Type': 'application/json'}
         j = {"act": act, "device_hash": self.device_hash}
-        if act not in ['ping', 'exit']:
-            j = {
-                "act": act,
-                "device_hash": self.device_hash,
+        if act not in ('ping', 'exit'):
+            j.update({
                 "hostname": self.hostname,
                 "ips": self.ips,
                 "macs": self.macs,
                 "is_app": app
-            }
+            })
         try:
-            s = self.session.post(self.endpoint, json=json.dumps(j), headers=headers).json()
+            s = self.session.post(self.endpoint, json=json.dumps(j), headers={'Content-Type': 'application/json'}).json()
         except requests.exceptions.RequestException as e:
             print("[API] Error: {}".format(e))
             if self.run:
@@ -113,11 +118,11 @@ class Host(object):
             print("[API] Error: {}".format(s))
         return s
 
-    def shutdown(self):
+    def shutdown(self, reason="atexit"):
         self.api("shutdown")
         self.run = False
         self._save_hash()
-        print("Exited...")
+        print("Exited ({})...".format(reason))
 
     def _new_hash(self, device_hash):
         self.last_update = datetime.now(timezone.utc)
@@ -190,4 +195,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
-        host.shutdown()
+        host.shutdown("finally")

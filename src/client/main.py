@@ -39,9 +39,9 @@ def get_ip_mac_addresses():
                     ip6 = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
                     mac6 = addr.address.replace("-", ":")
-            if ip == "::1":
-                continue
             if ip.startswith(('127.', '224.', '239.')):
+                continue
+            if ip6 == "::1":
                 continue
             if "00:00:00:00:00:00" in (mac, mac6):
                 continue
@@ -54,15 +54,12 @@ def get_ip_mac_addresses():
 
 def shutdown(log_file=LOG_FILE):
     operating_system = platform.system()
+    with open(log_file, "a") as f:
+        f.write("[{}] Shutdown request from killer server.\n".format(datetime.now()))
     if operating_system == "Windows":
-        with open(log_file, "a") as f:
-            f.write(f"{datetime.now()} Shutdown request from killer server.\n")
         os.system("shutdown /s /t 1")
     else:
-        with open(log_file, "a") as f:
-            f.write(f"{datetime.now()} Shutdown request from killer server.")
         os.system("shutdown -P now")
-    sys.exit(0)
 
 
 class Host:
@@ -107,15 +104,13 @@ class Host:
 
     def api(self, act):
         j = {"act": act, "device_hash": self.device_hash}
-        if act not in ['ping', 'exit']:
-            j = {
-                "act": act,
-                "device_hash": self.device_hash,
+        if act not in ('ping', 'exit'):
+            j.update({
                 "hostname": self.hostname,
                 "ips": self.ips,
                 "macs": self.macs,
                 "is_app": app
-            }
+            })
         try:
             s = self.session.post(self.endpoint, json=j).json()
         except requests.exceptions.RequestException as e:
@@ -127,11 +122,11 @@ class Host:
             print(f"[API] Error: {s}")
         return s
 
-    def shutdown(self):
+    def shutdown(self, reason="atexit"):
         self.api("shutdown")
         self.run = False
         self._save_hash()
-        print("Exited...")
+        print("Exited ({})...".format(reason))
 
     def _new_hash(self, device_hash):
         self.last_update = datetime.now(timezone.utc)
@@ -204,4 +199,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
-        host.shutdown()
+        host.shutdown("finally")
