@@ -38,6 +38,12 @@ def get_ip_mac_addresses():
                     ip6 = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
                     mac6 = addr.address.replace("-", ":")
+            if ip == "::1":
+                continue
+            if ip.startswith(('127.', '224.', '239.')):
+                continue
+            if "00:00:00:00:00:00" in (mac, mac6):
+                continue
             if None not in (ip, mac):
                 ifaces.append((ip, mac))
             if None not in (ip6, mac6):
