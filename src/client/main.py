@@ -1,3 +1,4 @@
+import atexit
 import os
 import platform
 import socket
@@ -197,6 +198,7 @@ class Host:
 if __name__ == '__main__':
     print("Starting client...")
     host = Host(ENDPOINT, HASH_FILE)
+    atexit.register(host.shutdown)
     try:
         host.start()
     except KeyboardInterrupt:
