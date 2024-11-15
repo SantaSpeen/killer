@@ -7,9 +7,10 @@ import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-import psutil
 import requests
+import wmi
 
+# noinspection DuplicatedCode
 ENDPOINT = os.getenv("ENDPOINT", "http://127.0.0.1:5000/client")
 HASH_FILE = os.getenv("HASH_FILE", "device.hash")
 LOG_FILE = os.getenv("LOG_FILE", "killer-client.txt")
@@ -19,22 +20,19 @@ app = False
 if KILLER_APP == "1":
     app = True
 
+
 def get_ip_mac_addresses():
-    interfaces = psutil.net_if_addrs()
-    interface_stats = psutil.net_if_stats()
     ifaces = []
-    for iface_name, addrs in interfaces.items():
-        if interface_stats[iface_name].isup:
-            ip, mac = None, None
-            for addr in addrs:
-                if addr.family == socket.AF_INET:  # IPv4
-                    ip = addr.address
-                elif addr.family == psutil.AF_LINK:  # MAC
-                    mac = addr.address.replace("-", ":")
-            if mac is None:
-                # print(f"[{iface_name}] MAC address not found. Skipping...")
-                continue
-            ifaces.append((ip, mac))
+    c = wmi.WMI()
+
+    for nic in c.Win32_NetworkAdapterConfiguration(IPEnabled=True):
+        ip = nic.Description
+        mac = nic.MACAddress
+        # Получаем IP-адреса
+        ip_addresses = nic.IPAddress
+        if ip_addresses:
+            for ip_address in ip_addresses:
+                ifaces.append((ip_address, mac))
     print("Found interfaces:", ifaces)
     return ifaces
 
@@ -43,15 +41,15 @@ def shutdown(log_file=LOG_FILE):
     if operating_system == "Windows":
         with open(log_file, "a") as f:
             f.write("{} Shutdown request from killer server.\n".format(datetime.now()))
-        # os.system("shutdown /s /t 1")
+        os.system("shutdown /s /t 1")
     else:
         with open(log_file, "a") as f:
             f.write("{} Shutdown request from killer server.".format(datetime.now()))
-        # os.system("shutdown -P now")
-    sys.exit(0)
+        os.system("shutdown -P now")
+    # sys.exit(0)
 
 
-class Host:
+class Host(object):
     ping_interval = timedelta(minutes=1)
     update_interval = timedelta(hours=12)
 
