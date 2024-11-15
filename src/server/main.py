@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import platform
 import secrets
@@ -74,9 +75,12 @@ def get_error(code, message=None, http_code=200):
     return err
 
 
+# noinspection t
 @app.route('/client', methods=['POST'])
 def client_update():
     data = request.json
+    if isinstance(data, str):
+        data = json.loads(data)
     device_hash = data.get('device_hash')  # Ожидаем, что клиент отправит свой уникальный хеш
     act = data.get('act')  # Что хочет клиент
     if act != "register":
