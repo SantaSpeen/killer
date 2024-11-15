@@ -78,13 +78,13 @@ class Host(object):
         if self.last_update is None or self.device_hash is None:
             print("Can't save hash: last_update or device_hash is None")
             return
-        with open(self.hash_file, "w") as f:
+        with open(str(self.hash_file), "w") as f:
             f.write("{}::{:s}".format(self.last_update.timestamp(), self.device_hash))
 
     def _read_hash(self):
         if not self.hash_file.exists():
             return
-        with open(self.hash_file, "r") as f:
+        with open(str(self.hash_file), "r") as f:
             d = f.read().strip()
         last_update, self.device_hash = d.split("::", 1)
         self.last_update = datetime.fromtimestamp(float(last_update), timezone.utc)
@@ -100,7 +100,7 @@ class Host(object):
             print("[API] Error: {}".format(e))
             if self.run:
                 return {}
-            exit(1)
+            sys.exit(1)
         if s.get("error"):
             print("[API] Error: {}".format(s))
         return s
@@ -124,7 +124,7 @@ class Host(object):
             print("Registered with device hash: {}".format(self.device_hash))
         else:
             print("Failed to register")
-            exit(1)
+            sys.exit(1)
 
     def update(self):
         print("Updating...")
