@@ -31,6 +31,8 @@ def get_ip_mac_addresses():
             for addr in addrs:
                 if addr.family == socket.AF_INET:  # IPv4
                     ip = addr.address
+                elif addr.family == psutil.AF_LINK:  # MAC
+                    mac = addr.address.replace("-", ":")
                 if addr.family == socket.AF_INET6:  # IPv6
                     ip = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
