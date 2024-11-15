@@ -103,6 +103,7 @@
             <th>Хэш устройства</th>
             <th>IP адреса</th>
             <th>MAC адреса</th>
+            <th>Сервер?</th>
             <th>Последняя активность</th>
             <th>Последнее обновление</th>
         </tr>
@@ -117,6 +118,7 @@
             <td class="mono">{{ host.device_hash }}</td>
             <td>{{ '<br>'.join(host.ips) | safe }}</td>
             <td>{{ '<br>'.join(host.macs) | safe }}</td>
+            <td>{{ '✅' if host.server else '❌' }}</td>
             <td>{{ host.last_request_local(3).strftime('%Y-%m-%d %H:%M:%S') }}</td>
             <td>{{ host.last_update_local(3).strftime('%Y-%m-%d %H:%M:%S') }}</td>
         </tr>

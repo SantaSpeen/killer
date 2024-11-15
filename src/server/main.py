@@ -88,7 +88,7 @@ def client_update():
             return get_error(1, "device_hash or act")
         if len(device_hash) != 64:
             return get_error(2, "bad device_hash")
-    hostname, ips, macs = data.get('hostname'), data.get('ips'), data.get('macs')
+    hostname, ips, macs, server = data.get('hostname'), data.get('ips'), data.get('macs'), data.get("server")
     # Проверяем данные
     if act in ("register", "update"):
         if not all((hostname, ips, macs)):
@@ -97,9 +97,11 @@ def client_update():
             return get_error(4, "hostname must be a string")
         if not isinstance(ips, list) or not isinstance(macs, list):
             return get_error(4, "ips and macs must be lists")
+        if not isinstance(server, bool):
+            return get_error(4, "server must be a boolean")
     match act:
         case "register":  # Регистрируем новое устройство
-            host = Host(hostname, ips, macs)
+            host = Host(hostname, ips, macs, server)
             if host_db.get(host.device_hash) is not None:
                 return get_error(3, host.device_hash)
             host_db.add(host)
