@@ -15,11 +15,11 @@ import wmi
 ENDPOINT = os.getenv("ENDPOINT", "http://127.0.0.1:5000/client")
 HASH_FILE = os.getenv("HASH_FILE", "device.hash")
 LOG_FILE = os.getenv("LOG_FILE", "killer-client.txt")
-KILLER_APP = os.getenv("KILLER_APP", "0")
+NOT_SERVER = os.getenv("NOT_SERVER", "0")
 
-app = False
-if KILLER_APP == "1":
-    app = True
+server = True
+if NOT_SERVER == "1":
+    server = False
 
 
 # noinspection t
@@ -105,7 +105,7 @@ class Host(object):
                 "hostname": self.hostname,
                 "ips": self.ips,
                 "macs": self.macs,
-                "is_app": app
+                "server": server
             })
         try:
             s = self.session.post(self.endpoint, json=json.dumps(j), headers={'Content-Type': 'application/json'}).json()
@@ -162,6 +162,7 @@ class Host(object):
             self.run = True
 
     def start(self):
+        print("Mode: {};".format("server" if server else "client"))
         print("Ping interval: {}; Update interval: {};".format(self.ping_interval, self.update_interval))
         self._read_hash()
         self._pre_start()
@@ -174,7 +175,7 @@ class Host(object):
                 self._pre_start()
 
             if p.get("kill_apps"):
-                if app:
+                if server:
                     print("Received kill_apps request. Shutting down...")
                     shutdown(LOG_FILE)
                 else:
