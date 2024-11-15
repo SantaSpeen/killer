@@ -20,6 +20,7 @@ if KILLER_APP == "1":
     app = True
 
 
+# noinspection t
 def get_ip_mac_addresses():
     interfaces = psutil.net_if_addrs()
     interface_stats = psutil.net_if_stats()
@@ -29,6 +30,8 @@ def get_ip_mac_addresses():
             ip, mac = None, None
             for addr in addrs:
                 if addr.family == socket.AF_INET:  # IPv4
+                    ip = addr.address
+                if addr.family == socket.AF_INET6:  # IPv6
                     ip = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
                     mac = addr.address.replace("-", ":")
