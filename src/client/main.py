@@ -9,6 +9,7 @@ from pathlib import Path
 import psutil
 import requests
 
+# noinspection DuplicatedCode
 ENDPOINT = os.getenv("ENDPOINT", "http://127.0.0.1:5000/client")
 HASH_FILE = os.getenv("HASH_FILE", "device.hash")
 LOG_FILE = os.getenv("LOG_FILE", "killer-client.txt")
@@ -17,6 +18,7 @@ KILLER_APP = os.getenv("KILLER_APP", "0")
 app = False
 if KILLER_APP == "1":
     app = True
+
 
 def get_ip_mac_addresses():
     interfaces = psutil.net_if_addrs()
@@ -30,7 +32,7 @@ def get_ip_mac_addresses():
                     ip = addr.address
                 elif addr.family == psutil.AF_LINK:  # MAC
                     mac = addr.address.replace("-", ":")
-            if mac is None:
+            if None in (ip, mac):
                 # print(f"[{iface_name}] MAC address not found. Skipping...")
                 continue
             ifaces.append((ip, mac))
@@ -42,11 +44,11 @@ def shutdown(log_file=LOG_FILE):
     if operating_system == "Windows":
         with open(log_file, "a") as f:
             f.write(f"{datetime.now()} Shutdown request from killer server.\n")
-        # os.system("shutdown /s /t 1")
+        os.system("shutdown /s /t 1")
     else:
         with open(log_file, "a") as f:
             f.write(f"{datetime.now()} Shutdown request from killer server.")
-        # os.system("shutdown -P now")
+        os.system("shutdown -P now")
     sys.exit(0)
 
 
