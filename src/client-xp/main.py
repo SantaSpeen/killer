@@ -93,7 +93,14 @@ class Host(object):
         headers = {'Content-Type': 'application/json'}
         j = {"act": act, "device_hash": self.device_hash}
         if act not in ['ping', 'exit']:
-            j = {"act": act, "device_hash": self.device_hash, "hostname": self.hostname, "ips": self.ips, "macs": self.macs}
+            j = {
+                "act": act,
+                "device_hash": self.device_hash,
+                "hostname": self.hostname,
+                "ips": self.ips,
+                "macs": self.macs,
+                "is_app": app
+            }
         try:
             s = self.session.post(self.endpoint, json=json.dumps(j), headers=headers).json()
         except requests.exceptions.RequestException as e:
