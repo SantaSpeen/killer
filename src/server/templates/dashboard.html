@@ -74,10 +74,14 @@
             })
                 .then(response => response.json()) // Предполагаем, что сервер возвращает JSON
                 .then(data => {
+                    if (data.error && data.code === 4) {
+                        console.log(data.message);
+                        location.reload();
+                    }
                     const status_table = document.getElementById('status-table');
                     const rows = status_table.querySelectorAll('tbody tr');
-                    rows[0].cells[1].textContent = data.kill_apps ? '✅' : '❌';
-                    rows[1].cells[1].textContent = data.kill_other ? '✅' : '❌';
+                    rows[0].cells[1].textContent = data.status[0] ? '✅' : '❌';
+                    rows[1].cells[1].textContent = data.status[1] ? '✅' : '❌';
 
                     const hosts_table = document.getElementById('hosts-table');
                     // Очищаем таблицу, оставляя только заголовки
@@ -106,8 +110,8 @@
                             <td>${host.ips.join('<br>')}</td>
                             <td>${host.macs.join('<br>')}</td>
                             <td>${host.server ? 'yes' : 'ni'}</td>
-                            <td>${new Date(host.last_request).toLocaleString()}</td>
-                            <td>${new Date(host.last_update).toLocaleString()}</td>
+                            <td>${new Date(host.last_request * 1000).toLocaleString()}</td>
+                            <td>${new Date(host.last_update * 1000).toLocaleString()}</td>
                         `;
                         hosts_table.appendChild(row);
                     });
@@ -128,20 +132,20 @@
                 <thead>
                     <tr>
                         <th></th>
-                        <th>Kill?</th>
+                        <th>Request</th>
                         <th>Timeouts</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Apps</td>
-                        <td>{{ '✅' if kill_apps else '❌' }}</td>
-                        <td>{{ kill_app_timeout }}s</td>
+                        <td>First</td>
+                        <td>{{ '✅' if timeouts.status()[0] else '❌' }}</td>
+                        <td>{{ timeouts.kill_first }}s</td>
                     </tr>
                     <tr>
-                        <td>Others</td>
-                        <td>{{ '✅' if kill_other else '❌' }}</td>
-                        <td>{{ kill_timeout }}s</td>
+                        <td>Second</td>
+                        <td>{{ '✅' if timeouts.status()[1] else '❌' }}</td>
+                        <td>{{ timeouts.kill_second }}s</td>
                     </tr>
                 </tbody>
             </table>

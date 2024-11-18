@@ -36,12 +36,13 @@ class Host:
             logger.info(f"[{self.hostname}] Host marked as active")
             [callback(self) for callback in HostDatabase.enable_callbacks]
 
-    def update(self, hostname, ips, macs):
+    def update(self, hostname, ips, macs, server):
         """Обновление данных хоста"""
         self._check_enable()
         self.hostname = hostname
         self.ips = ips
         self.macs = macs
+        self.server = server
         self.last_update = datetime.now(timezone.utc)
         old_device_hash = self.device_hash
         self.generate_hash()
@@ -141,11 +142,15 @@ class HostDatabase:
             json.dump(self.data, f, indent=4)
 
     def _check_clients(self):
-        while True:
+        _sleep_parts = [0] * int(Host.inactive_timeout.total_seconds())
+        while self.run:
             for host in self.find_inactive():
                 logger.warning(f"Host {host.hostname!r} is inactive")
                 [callback(host) for callback in self.inactive_callbacks]
-            threading.Event().wait(Host.inactive_timeout.total_seconds())  # Пауза между проверками
+            for _ in _sleep_parts:
+                threading.Event().wait(1)  # Пауза между проверками
+                if not self.run:
+                    return
 
     def get(self, device_hash):
         host = self.data.get(device_hash)
@@ -186,3 +191,12 @@ class HostDatabase:
                 continue
             if not host.is_active():
                 yield host
+
+    def start_checking(self):
+        self.t = threading.Thread(target=self._check_clients)
+        self.t.start()
+
+    def stop_checking(self):
+        self.run = False
+        self.t.join()
+        self.t = None

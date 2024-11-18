@@ -1,42 +1,39 @@
-import glob
+import argparse
 import logging
 import os
 import platform
 import sys
-import zipfile
 from datetime import datetime
-from pathlib import Path
 
 from loguru import logger
 
+from .config import Config
 from .datastore import Host, HostDatabase
+
+aparser = argparse.ArgumentParser(description="Killer server")
+aparser.add_argument("-c", "--config", type=str, default="/etc/killer/config.json", help="Path to config file")
+args = aparser.parse_args()
+
+config = Config(args.config)
 
 # configure logging
 logger.remove()
 system = platform.system()
 if system == "Linux":
     # Logging
-    log_dir = Path("/var/log/")
-    log_file = log_dir / "killer.log"
-    os.makedirs(log_dir, exist_ok=True)
-    if os.path.exists(log_file):
-        ftime = os.path.getmtime(log_file)
+    if config.log.file.exists():
+        ftime = os.path.getmtime(config.log.file)
         index = 1
         while True:
-            zip_path = log_dir / f"killer-{datetime.fromtimestamp(ftime).strftime('%Y-%m-%d')}-{index}.zip"
-            if not os.path.exists(zip_path):
+            rename_path = config.log.dir / f"killer-{datetime.fromtimestamp(ftime).strftime('%Y-%m-%d')}-{index}.log"
+            if not rename_path.exists():
                 break
             index += 1
-        with zipfile.ZipFile(zip_path, "w") as zipf:
-            logs_files = glob.glob(f"{log_dir}/killer*.log")
-            for file in logs_files:
-                if os.path.exists(file):
-                    zipf.write(file, os.path.basename(file))
-                    os.remove(file)
-    logger.add(sys.stdout, level="DEBUG", backtrace=False, diagnose=False, enqueue=True, colorize=False, format="| {level: <8} | {message}")
-    logger.add(log_file, level="DEBUG", rotation="10 MB", retention="30 day")
-    # Configurations
-    os.makedirs("/etc/killer/", exist_ok=True)
+        os.rename(config.log.file, rename_path)
+    if config.log.stdout.enabled:
+        logger.add(**config.stdout_log)
+    if config.log.file.enabled:
+        logger.add(**config.file_log)
 else:
     logger.add(sys.stdout, level="DEBUG", backtrace=False, diagnose=False, enqueue=True,
                format="\r<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | {message}")
