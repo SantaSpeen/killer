@@ -56,15 +56,67 @@
     </style>
     <script>
         function killAll() {
-            fetch('/admin/kill_all', {
+            fetch('/admin/api/kill_all', {
                 method: 'POST'
             })
             .then(response => response.json())
             .then(data => {
                 console.log(data.message);
                 alert(data.message);
+                location.reload();
             });
         }
+        // Функция для обновления таблицы
+        function updateTable() {
+            // Выполнение запроса на сервер для получения новых данных (замените URL на ваш)
+            fetch('/admin/api/updates', {
+                method: 'POST'
+            })
+                .then(response => response.json()) // Предполагаем, что сервер возвращает JSON
+                .then(data => {
+                    const status_table = document.getElementById('status-table');
+                    const rows = status_table.querySelectorAll('tbody tr');
+                    rows[0].cells[1].textContent = data.kill_apps ? '✅' : '❌';
+                    rows[1].cells[1].textContent = data.kill_other ? '✅' : '❌';
+
+                    const hosts_table = document.getElementById('hosts-table');
+                    // Очищаем таблицу, оставляя только заголовки
+                    hosts_table.innerHTML = `
+                        <tr>
+                            <th>Статус</th>
+                            <th>Имя хоста</th>
+                            <th>Хэш устройства</th>
+                            <th>IP адреса</th>
+                            <th>MAC адреса</th>
+                            <th>Сервер?</th>
+                            <th>Последняя активность</th>
+                            <th>Последнее обновление</th>
+                        </tr>
+                    `;
+
+                    // Добавляем новые строки в таблицу
+                    data.hosts.forEach(host => {
+                        const row = document.createElement('tr');
+                        const statusClass = host.enable ? 'online' : 'offline';
+                        const statusIcon = host.enable ? '✅' : '❌';
+                        row.innerHTML = `
+                            <td class="${statusClass}">${statusIcon}</td>
+                            <td class="${statusClass}">${host.hostname}</td>
+                            <td class="mono">${host.device_hash}</td>
+                            <td>${host.ips.join('<br>')}</td>
+                            <td>${host.macs.join('<br>')}</td>
+                            <td>${host.server ? 'yes' : 'ni'}</td>
+                            <td>${new Date(host.last_request).toLocaleString()}</td>
+                            <td>${new Date(host.last_update).toLocaleString()}</td>
+                        `;
+                        hosts_table.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Ошибка:', error));
+        }
+
+        // Запускаем обновление таблицы каждую секунду
+        setInterval(updateTable, 5000);
     </script>
 </head>
 <body>
@@ -72,7 +124,7 @@
     <div class="flex-container">
         <div>
             <p><b>Количество хостов</b>: {{ hosts|length }}</p>
-            <table>
+            <table id="status-table">
                 <thead>
                     <tr>
                         <th></th>
@@ -96,7 +148,7 @@
         </div>
         <button class="kill-all-btn" onclick="killAll()">Kill All</button>
     </div>
-    <table>
+    <table id="hosts-table">
         <tr>
             <th>Статус</th>
             <th>Имя хоста</th>
@@ -118,7 +170,7 @@
             <td class="mono">{{ host.device_hash }}</td>
             <td>{{ '<br>'.join(host.ips) | safe }}</td>
             <td>{{ '<br>'.join(host.macs) | safe }}</td>
-            <td>{{ '✅' if host.server else '❌' }}</td>
+            <td>{{ 'yes' if host.server else 'ni' }}</td>
             <td>{{ host.last_request_local(3).strftime('%Y-%m-%d %H:%M:%S') }}</td>
             <td>{{ host.last_update_local(3).strftime('%Y-%m-%d %H:%M:%S') }}</td>
         </tr>

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from loguru import logger
 
-
 class Host:
     inactive_timeout = timedelta(minutes=1, seconds=15)
 
@@ -98,6 +97,19 @@ class Host:
             self.enable
         )
 
+    def to_dict(self):
+        """Преобразование объекта хоста в словарь"""
+        return {
+            "hostname": self.hostname,
+            "device_hash": self.device_hash,
+            "ips": self.ips,
+            "macs": self.macs,
+            "server": self.server,
+            "last_request": self.last_request.timestamp(),
+            "last_update": self.last_update.timestamp(),
+            "enable": self.enable
+        }
+
     def __eq__(self, other):
         return self.to_tuple() == other.to_tuple()
 
@@ -162,8 +174,11 @@ class HostDatabase:
         logger.info(f"[datastore] device_hash replaced for {new_host.hostname!r}: {old_device_hash} -> {new_host.device_hash}")
         self._write()
 
-    def all(self):
-        return list(map(Host.from_tuple, self.data.values()))
+    def all(self, _asdict=False):
+        data = list(map(Host.from_tuple, self.data.values()))
+        if not _asdict:
+            return data
+        return [host.to_dict() for host in data]
 
     def find_inactive(self):
         for host in self.all():

@@ -14,13 +14,14 @@ from core import InterceptHandler, HostDatabase, Host
 host_db = HostDatabase("hosts.json")
 app = Flask(__name__)
 app.secret_key = secrets.token_urlsafe(16)
-app.logger.addHandler(InterceptHandler()) # Эксепшены с фласка будут попадать в логи
+app.logger.addHandler(InterceptHandler())  # Эксепшены с фласка будут попадать в логи
 # Сначала убиваем все приложения, потом остальные
 #      web     |                            kill_app_timeout + kill_timeout                                |
 # -> kill_all -> kill_apps: true -kill_app_timeout-> kill_apps: false; kill_other: true -kill_serv_timeout-> kill_self
 kill_app_timeout = 120  # 2 минуты
 kill_timeout = 160  # 3 минуты
 kill_all_history = [0.0, ]  # Метки времени, когда была команда на убийство всех
+
 
 def kill_self():
     logger.warning("Killing server")
@@ -34,11 +35,13 @@ def kill_self():
             f.write(f"{datetime.now()} Shutdown request from killer server.")
         os.system("shutdown -P now")
 
+
 def kill_apps():
     current_time = datetime.now(timezone.utc).timestamp()
     if current_time - kill_all_history[-1] < kill_app_timeout:
         return True
     return False
+
 
 def kill_other():
     if kill_apps():
@@ -46,13 +49,16 @@ def kill_other():
     current_time = datetime.now(timezone.utc).timestamp()
     return current_time - kill_all_history[-1] < kill_app_timeout + kill_timeout
 
+
 def generate_hash(login, password, salt):
     return hashlib.sha256(f"{login}{salt}{password}".encode()).hexdigest()
+
 
 _login = "admin"
 _password = "password123"
 login_hash = generate_hash(_login, _password, '')
 login_hash_cookie = generate_hash(_login, _password, app.secret_key)
+
 
 def get_error(code, message=None, http_code=200):
     err = {"error": None, "code": code, "http_code": http_code}
@@ -131,6 +137,7 @@ def client_update():
         case _:
             return get_error(4, "act")
 
+
 def check_cookie(need_flash=True):
     if request.cookies.get('login') == login_hash_cookie:
         return True
@@ -138,6 +145,7 @@ def check_cookie(need_flash=True):
         logger.warning(f"Bad cookie from {request.remote_addr}")
         flash("Bad cookie", "error")
     return False
+
 
 # Обработка данных после отправки формы
 @app.route('/admin', methods=['POST'])
@@ -154,12 +162,14 @@ def login():
         flash("Invalid login or password", "error")
         return redirect(url_for('admin_index'))
 
+
 @app.route('/admin', methods=['GET'])
 def admin_index():
     if check_cookie(False):
         return redirect(url_for('admin_dashboard'))
     logger.info(f"Admin login page opened from {request.remote_addr}")
     return render_template('index.html')
+
 
 @app.route('/admin/dashboard', methods=['GET'])
 def admin_dashboard():
@@ -175,14 +185,20 @@ def admin_dashboard():
     }
     return render_template('dashboard.html', **p)
 
-@app.route('/admin/kill_all', methods=['POST'])
-def kill_all():
+
+@app.route(f'/admin/api/<method>', methods=['POST'])
+def admin_api(method):
     if not check_cookie():
-        return redirect(url_for('admin_index'))
-    kill_all_history.append(datetime.now(timezone.utc).timestamp())
-    logger.info(f"Kill all command received from {request.remote_addr}")
-    logger.info(f"History: {kill_all_history}")
-    return {"message": "Command added to queue"}
+        return get_error(4, "invalid cookie"), 403
+    match method:
+        case "kill_all":
+            kill_all_history.append(datetime.now(timezone.utc).timestamp())
+            logger.info(f"Kill all command received from {request.remote_addr}")
+            logger.info(f"History: {kill_all_history}")
+            return {"message": "Command added to queue"}
+        case "updates":
+            return {"kill_apps": kill_apps(), "kill_other": kill_other(), "hosts": host_db.all(True)}
+
 
 @app.errorhandler(Exception)
 def handle_error(error):
@@ -194,6 +210,7 @@ def handle_error(error):
     if status_code == 500:
         logger.exception(error)
     return get_error(code, str(error), status_code), status_code
+
 
 if __name__ == '__main__':
     # Запускаем фоновую задачу проверки клиентов
