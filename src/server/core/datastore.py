@@ -7,9 +7,12 @@ from pathlib import Path
 from loguru import logger
 
 class Host:
+    _host_db = None
     inactive_timeout = timedelta(minutes=1, seconds=15)
 
     def __init__(self, hostname, ips, macs, server: bool, last_request: int = None, last_update: int = None, enable=True):
+        if self._host_db is None:
+            raise ValueError("Host database is not configured")
         self.hostname = hostname
         self.device_hash = None
         self.ips = ips
@@ -23,6 +26,15 @@ class Host:
         self.last_update = datetime.fromtimestamp(last_update, timezone.utc)
         self.enable = enable  # Если хост отключили, и не нужно его алертить
         self.generate_hash()
+
+    def registered(self):
+        return self._host_db.get(self.device_hash) is not None
+
+    def save(self):
+        if not self.registered():
+            self._host_db.add(self)
+        else:
+            self._host_db.update(self)
 
     def last_request_local(self, plus):
         return self.last_request.astimezone(timezone(timedelta(hours=plus)))
@@ -48,13 +60,18 @@ class Host:
         self.generate_hash()
         self.ping()
         logger.info(f"[datastore] Host data updated: {self}")
-        return self.device_hash, self.device_hash != old_device_hash
+        if self.device_hash != old_device_hash:
+            self._host_db.replace(old_device_hash, self)
+        else:
+            self._host_db.update(self)
+        return self.device_hash
 
     def ping(self):
         """Обновление времени последнего запроса"""
         self._check_enable()
         self.last_request = datetime.now(timezone.utc)
         logger.info(f"[{self.hostname}] ping: {self.last_request}")
+        self.save()
 
     def shutdown(self):
         """Хост сообщил о завершении работы"""
@@ -62,6 +79,7 @@ class Host:
             return # Хост уже отключен
         self.enable = False
         logger.info(f"[{self.hostname}] Host marked as inactive")
+        self.save()
         [callback(self) for callback in HostDatabase.shutdown_callbacks]
 
     def generate_hash(self):
@@ -128,6 +146,7 @@ class HostDatabase:
         self.run = True
         self.file = Path(data_file)
         self.data = {}  # hash: (hostname, device_hash, ips, macs, last_request, enable)
+        Host._host_db = self
         self._read()
 
     def _read(self):

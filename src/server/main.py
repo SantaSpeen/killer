@@ -15,8 +15,8 @@ host_db = HostDatabase(config.storage.hosts)
 # Сначала убиваем все приложения, потом остальные
 #      web     |                            kill_app_timeout + kill_timeout                                |
 # -> kill_all -> kill_apps: true -kill_app_timeout-> kill_apps: false; kill_other: true -kill_serv_timeout-> kill_self
-timeouts = config.timeout
-_index = {
+delays = config.delays
+_cache = {
     "login": []
 }
 
@@ -34,7 +34,7 @@ def kill_self():
         os.system("shutdown -P now")
 
 
-def get_error(code, message=None, http_code=200):
+def get_error(code, message=None, http_code=200, _add=None):
     err = {"error": None, "code": code, "http_code": http_code}
     match code:
         case 1:
@@ -43,7 +43,6 @@ def get_error(code, message=None, http_code=200):
             err['error'] = f"register first ({message})"
         case 3:
             err['error'] = "already registered"
-            err['device_hash'] = message
         case 4:
             err['error'] = f"invalid data: {message}"
         case 8:
@@ -52,6 +51,8 @@ def get_error(code, message=None, http_code=200):
             err['error'] = f"internal server error: {message}"
         case _:
             err['error'] = f"unknown error ({message})"
+    if _add is not None:
+        err.update(_add)
     return err
 
 
@@ -72,7 +73,7 @@ def _get_host_info(act, data):
 
 def _check_cookie(need_flash=True):
     auth = request.cookies.get('woraw'), request.cookies.get('wsolt')
-    if auth in _index['login']:
+    if auth in _cache['login']:
         return True
     if need_flash:
         logger.warning(f"Bad cookie from {request.remote_addr}")
@@ -99,33 +100,28 @@ def client_update():
     match act:
         case "register":  # Регистрируем новое устройство
             host = Host(*host_info)
-            if host_db.get(host.device_hash) is not None:
-                return get_error(3, host.device_hash)
-            host_db.add(host)
-            return {"device_hash": host.device_hash}
+            o = {"device_hash": host.device_hash}
+            if host.registered():
+                return get_error(3, _add=o)
+            host.save()
+            return o
         case "update":  # раз в 12 часов обновляем данные от клиента
             host = host_db.get(device_hash)
             if host is None:
                 return get_error(2)
-            _device_hash, updated = host.update(*host_info)
-            if updated:
-                host_db.replace(device_hash, host)
-            return {"device_hash": _device_hash, "updated": updated}
+            _device_hash = host.update(*host_info)
+            return {"device_hash": host.device_hash, "update_interval": config.client['update_interval'], "ping_interval": config.client['ping_interval']}
         case "ping":  # раз в 1 минуту клиент шлет пинг
             host = host_db.get(device_hash)
             if host is None:
                 return get_error(4, "unknown device")
             host.ping()
-            host_db.update(host)
-            # TODO: Переделать на статусы
-            kill_apps, kill_other = timeouts.status()
-            return {"message": "pong", "kill_apps": kill_apps, "kill_other": kill_other}
+            return {"message": "pong", "status": delays.status()}
         case "shutdown":  # клиент завершает работу
             host = host_db.get(device_hash)
             if host is None:
                 return get_error(4, "unknown device")
             host.shutdown()
-            host_db.update(host)
             return {"message": 0}
         case _:
             return get_error(4, "act")
@@ -144,7 +140,7 @@ def login():
         response = make_response(redirect(url_for('admin_dashboard')))
         response.set_cookie('woraw', user.woraw, max_age=timedelta(hours=1))
         response.set_cookie('wsolt', user.wsolt, max_age=timedelta(hours=1))
-        _index['login'].append((user.woraw, user.wsolt))
+        _cache['login'].append((user.woraw, user.wsolt))
         return response
     else:
         logger.warning(f"Invalid login or password from {request.remote_addr}")
@@ -166,7 +162,7 @@ def admin_dashboard():
         return redirect(url_for('admin_index'))
     logger.info(f"Admin dashboard opened from {request.remote_addr}")
     p = {
-        "timeouts": timeouts,
+        "timeouts": delays,
         "hosts": host_db.all()
     }
     return render_template('dashboard.html', **p)
@@ -179,10 +175,10 @@ def admin_api(method):
     match method:
         case "kill_all":
             logger.info(f"Kill all command received from {request.remote_addr}")
-            timeouts.kill_request()
+            delays.kill_request()
             return {"message": "Command added to queue"}
         case "updates":
-            return {"status": timeouts.status(), "hosts": host_db.all(True)}
+            return {"status": delays.status(), "hosts": host_db.all(True)}
 
 
 @app.errorhandler(Exception)

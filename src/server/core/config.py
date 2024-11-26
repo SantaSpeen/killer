@@ -13,7 +13,7 @@ from loguru import logger
 
 
 @dataclass
-class Timeouts:
+class Delays:
     kill_first: int
     kill_second: int
     history: list[float] = field(default_factory=lambda: [0.0, ])
@@ -96,10 +96,14 @@ class Config:
     def __init__(self, file):
         self.config_file = Path(file)
         self.__config_raw = edict({
+            "client": {
+                "update_interval": 43200,
+                "ping_interval": 60
+            },
             "auth": [
                 {"login": "admin", "password": "P@ssw0rd"}
             ],
-            "timeout": {
+            "delays": {
                 "kill_first": 60,
                 "kill_second": 120
             },
@@ -156,7 +160,7 @@ class Config:
             _raw = json.loads(self.config_file.read_text("utf-8"))
             self.__config_raw.update(_raw)
             self.__config_raw['auth'] = _raw['auth']
-            self.__config_raw['timeout'].update(_raw['timeout'])
+            self.__config_raw['delays'].update(_raw['delays'])
             self.__config_raw['log'].update(_raw['log'])
             self.__config_raw['storage'].update(_raw['storage'])
             self.__config_raw['notify'].update(_raw['notify'])
@@ -182,7 +186,11 @@ class Config:
             if not self.__config_raw['storage']['dir'].exists():
                 self.__config_raw['storage']['dir'].mkdir(parents=True, exist_ok=True)
         self.__config_raw['notify']['telegram'] = Telegram(**self.__config_raw['notify']['telegram'])
-        self.__config_raw['timeout'] = Timeouts(**self.__config_raw['timeout'])
+        self.__config_raw['delays'] = Delays(**self.__config_raw['delays'])
+
+    @property
+    def client(self):
+        return self.__config_raw['client']
 
     @property
     def auth(self):
@@ -209,8 +217,8 @@ class Config:
         return s
 
     @property
-    def timeout(self):
-        return self.__config_raw['timeout']
+    def delays(self):
+        return self.__config_raw['delays']
 
     @property
     def storage(self):
