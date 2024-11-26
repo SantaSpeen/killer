@@ -2,6 +2,7 @@ import atexit
 import os
 import platform
 import socket
+import sys
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -59,11 +60,12 @@ def shutdown(log_file=LOG_FILE):
         os.system("shutdown /s /t 1")
     else:
         os.system("shutdown -P now")
+    # sys.exit(0)
 
 
 class Host:
-    ping_interval = timedelta(minutes=1)
-    update_interval = timedelta(hours=12)
+    ping_interval = timedelta(seconds=0)
+    update_interval = timedelta(seconds=0)
 
     def __init__(self, endpoint, hash_file):
         self.run = False
@@ -116,9 +118,10 @@ class Host:
             print(f"[API] Error: {e}")
             if self.run:
                 return {}
-            exit(1)
+            sys.exit(1)
         if s.get("error"):
-            print(f"[API] Error: {s}")
+            if s['code'] != 3:
+                print(f"[API] Error: {s}")
         return s
 
     def shutdown(self, reason="atexit"):
@@ -135,56 +138,64 @@ class Host:
     def register(self):
         print("Registering...")
         u = self.api("register")
-        if u.get("device_hash"):
-            self._new_hash(u['device_hash'])
-            print(f"Registered with device hash: {self.device_hash}")
+        if u.get("code") == 3 and u['device_hash'] == self.device_hash:
+            print(f" - Already registered. Cached device_hash: {self.device_hash}")
+            return
         else:
-            print("Failed to register")
-            exit(1)
+            self._new_hash(u['device_hash'])
+            print(f" - Ready. New device_hash: {self.device_hash}")
 
     def update(self):
         print("Updating...")
         u = self.api("update")
-        if u.get("updated"):
-            self._new_hash(u['device_hash'])
-            print(f"Updated device hash: {self.device_hash}")
+        _old = self.device_hash
+        if u.get("device_hash") != self.device_hash:
+            print(f" - Device hash changed: {self.device_hash} -> {u['device_hash']}")
         else:
-            print("Device hash not updated")
+            print(" - Device hash not updated")
+        _pi, _ui = u['ping_interval'], u['update_interval']
+        if self.ping_interval.total_seconds() != _pi or self.update_interval.total_seconds() != _ui:
+            self.ping_interval = timedelta(seconds=_pi)
+            self.update_interval = timedelta(seconds=_ui)
+            print(f" - Intervals updated: ping={self.ping_interval}; update={self.update_interval}")
+        else:
+            print(f" - Intervals not updated")
 
-    def _pre_start(self):
-        if self.device_hash is None:
-            self.register()
-        else:
-            print(f"Using cashed hash: {self.device_hash}")
+    def _pre_start(self, i=0):
+        if i > 3:
+            print("Can't connect to server. Exiting...")
+            sys.exit(1)
+        self.register()
         p = self.api("ping")
         if p.get("code") == 4:
             self.device_hash = None
-            return self._pre_start()
+            return self._pre_start(i+1)
         if self.api("ping").get("message") == "pong":
             print("Connected to server")
             self.run = True
 
     def start(self):
-        print(f'Mode: {"server" if server else "client"}')
-        print(f"Ping interval: {self.ping_interval}; Update interval: {self.update_interval};")
+        print(f'Mode: {"server" if server else "app"}')
         self._read_hash()
         self._pre_start()
+        self.update()
         while self.run:
-            if datetime.now(timezone.utc) - self.last_update > self.update_interval:
+            if datetime.now(timezone.utc) - self.update_interval > self.last_update:
                 self.update()
             p = self.api("ping")
             if p.get("code") == 4:
                 print('wtf')
                 self._pre_start()
 
-            if p.get("kill_apps"):
-                if server:
-                    print("Received kill_apps request. Shutting down...")
+            kill_first, kill_second = p['status']
+            if kill_first:
+                if not server:
+                    print("Received kill_first request. Shutting down...")
                     shutdown(LOG_FILE)
                 else:
-                    print("Received kill_apps request, but client registered not as app-host. Ignoring...")
-            if p.get("kill_other"):
-                print("Received kill_other request. Shutting down...")
+                    print("Received kill_first request, but client registered as server. Ignoring...")
+            if kill_second:
+                print("Received kill_second request. Shutting down...")
                 shutdown(LOG_FILE)
 
             time.sleep(self.ping_interval.total_seconds())
