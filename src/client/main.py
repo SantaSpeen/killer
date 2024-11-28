@@ -160,6 +160,7 @@ class Host:
             print(f" - Intervals updated: ping={self.ping_interval}; update={self.update_interval}")
         else:
             print(f" - Intervals not updated")
+        self.last_update = datetime.now(timezone.utc)
 
     def _pre_start(self, i=0):
         if i > 3:

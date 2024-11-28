@@ -152,6 +152,7 @@ class Host(object):
             self.ping_interval = timedelta(seconds=_pi)
             self.update_interval = timedelta(seconds=_ui)
             print("Intervals changed: ping={}; update={}".format(self.ping_interval, self.update_interval))
+        self.last_update = datetime.now(timezone.utc)
 
     def _pre_start(self, i=0):
         if i > 3:
