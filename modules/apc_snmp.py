@@ -4,9 +4,6 @@ from snimpy.snmp import SNMPException
 import requests
 import time
 
-# Загрузка MIB
-load("UPS-MIB")
-
 # Настройки SNMP
 host = "192.168.1.1"  # IP-адрес APC
 community = "public"  # Коммьюнити строка SNMP
@@ -59,6 +56,10 @@ def main():
 
     except Exception as e:
         print(f"Error: {e}")
+
+
+# Загрузка MIB
+load("UPS-MIB")
 
 if __name__ == "__main__":
     main()
