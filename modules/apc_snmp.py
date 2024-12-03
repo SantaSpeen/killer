@@ -10,6 +10,7 @@ load("UPS-MIB")
 # Настройки SNMP
 host = "192.168.1.1"  # IP-адрес APC
 community = "public"  # Коммьюнити строка SNMP
+version = 2           # Версия SNMP
 timeout = 1           # Таймаут в секундах
 battery_trigger = 10 * 60  # 10 мин
 
@@ -36,7 +37,7 @@ def send_killall():
 def main():
     try:
         # Создание менеджера SNMP
-        manager = Manager(host, community, version=2, timeout=timeout)
+        manager = Manager(host, community, version=version, timeout=timeout)
 
         while True:
             try:
