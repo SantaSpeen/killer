@@ -175,6 +175,7 @@ class Config:
         for a in self.__config_raw['auth']:
             a.generate_cookies(self.secret_key)
         self.__config_raw['log']['file']['dir'] = Path(self.__config_raw['log']['file']['dir'])
+        self.__config_raw['storage']['dir'] = Path(self.__config_raw['storage']['dir'])
         if platform.system() == "Linux":
             # Создаем папки, если их нет
             # log
