@@ -134,7 +134,7 @@ class Host(object):
         u = self.api("register")
         if u.get("device_hash"):
             self._new_hash(u['device_hash'])
-            print(f" - Registered with device hash: {self.device_hash}")
+            print(" - Registered with device hash: {}".format(self.device_hash))
         else:
             print(" - Failed to register")
             sys.exit(1)
