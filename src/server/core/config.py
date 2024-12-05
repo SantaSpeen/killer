@@ -211,10 +211,11 @@ class Config:
     @property
     def file_log(self):
         f_args = self.__config_raw['log']['file'].copy()
+        f = f_args['dir'] / f_args['file']
         del f_args['enabled']
         del f_args['dir']
         del f_args['file']
-        return f_args['dir'] / f_args['file'], f_args
+        return f, f_args
 
     @property
     def delays(self):
