@@ -12,7 +12,7 @@ import requests
 import wmi
 
 # noinspection DuplicatedCode
-ENDPOINT = os.getenv("ENDPOINT", "http://127.0.0.1:5000/client")
+ENDPOINT = os.getenv("ENDPOINT", "http://192.168.250.54:5000/client")
 HASH_FILE = os.getenv("HASH_FILE", "device.hash")
 LOG_FILE = os.getenv("LOG_FILE", "killer-client.txt")
 NOT_SERVER = os.getenv("NOT_SERVER", "0")
