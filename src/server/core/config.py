@@ -121,7 +121,7 @@ class Config:
                     "enabled": True,
                     "dir": "/var/log/",
                     "file": "killer.log",
-                    "format": "<datetime> | <log level> | <file location>:<scope>:<line number> - <message>",
+                    "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>",
                     "level": "DEBUG",
                     "rotation": "10 MB",
                     "retention": "30 day"

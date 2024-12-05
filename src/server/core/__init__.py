@@ -26,14 +26,14 @@ if system == "Linux":
     if config.log.file.enabled:
         f, f_args = config.file_log
         if f.exists():
-            ftime = os.path.getmtime(config.log.file)
+            ftime = os.path.getmtime(f)
             index = 1
             while True:
-                rename_path = config.log.dir / f"killer-{datetime.fromtimestamp(ftime).strftime('%Y-%m-%d')}-{index}.log"
+                rename_path = f.parent / f"killer-{datetime.fromtimestamp(ftime).strftime('%Y-%m-%d')}-{index}.log"
                 if not rename_path.exists():
                     break
                 index += 1
-            os.rename(config.log.file, rename_path)
+            os.rename(f, rename_path)
         logger.add(f, **f_args)
 else:
     logger.add(sys.stdout, level="DEBUG", backtrace=False, diagnose=False, enqueue=True,
