@@ -210,12 +210,11 @@ class Config:
 
     @property
     def file_log(self):
-        s = self.__config_raw['log']['file'].copy()
-        s['sink'] = self.__config_raw['log']['dir'] / self.__config_raw['log']['file']['file']
-        del s['enabled']
-        del s['dir']
-        del s['file']
-        return s
+        f_args = self.__config_raw['log']['file'].copy()
+        del f_args['enabled']
+        del f_args['dir']
+        del f_args['file']
+        return f_args['dir'] / f_args['file'], f_args
 
     @property
     def delays(self):
