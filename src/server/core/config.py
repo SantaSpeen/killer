@@ -179,8 +179,8 @@ class Config:
             # Создаем папки, если их нет
             # log
             self.__config_raw['log']['file']['dir'] = self.__config_raw['log']['file']['dir'] / self.__config_raw['log']['file']['file']
-            if not self.__config_raw['log']['dir'].exists():
-                self.__config_raw['log']['dir'].mkdir(parents=True, exist_ok=True)
+            if not self.__config_raw['log']['file']['dir'].exists():
+                self.__config_raw['log']['file']['dir'].mkdir(parents=True, exist_ok=True)
             # storage
             self.__config_raw['storage']['hosts'] = self.__config_raw['storage']['dir'] / self.__config_raw['storage']['hosts']
             if not self.__config_raw['storage']['dir'].exists():
